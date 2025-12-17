@@ -1,0 +1,29 @@
+{
+  "name": "youtube-playlist-manager",
+  "version": "1.0.0",
+  "description": "Local YouTube Playlist Manager with OAuth-backed cache",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "lint": "node --check server",
+    "test": "echo \"No automated tests yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/astrojason/youtube-playlist-manager.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/astrojason/youtube-playlist-manager/issues"
+  },
+  "homepage": "https://github.com/astrojason/youtube-playlist-manager#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "googleapis": "^169.0.0"
+  }
+}

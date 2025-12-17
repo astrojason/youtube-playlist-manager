@@ -1,0 +1,15 @@
+node_modules/
+playlists.json
+tokens.json
+.env
+*.log
+credentials.json
+.env.*
+.DS_Store
+.vscode/
+.idea/
+.cache/
+npm-debug.log*
+yarn-error.log*
+coverage/
+dist/
