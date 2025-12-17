@@ -9,7 +9,7 @@ import {
   ensureTokens,
 } from "./youtube.js";
 import { readCache, writeCache } from "./cache.js";
-import { enqueueJob, processPendingJobs, jobSummary } from "./jobs.js";
+import { enqueueJob, processPendingJobs, jobSummary, listJobs } from "./jobs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, "../public");
@@ -243,6 +243,15 @@ app.post("/api/jobs/resume", async (req, res) => {
     await processJobsAndRefresh();
     const jobs = await jobSummary();
     res.json({ jobSummary: jobs, cache: cacheState });
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
+app.get("/api/jobs", async (req, res) => {
+  try {
+    const jobs = await listJobs();
+    res.json({ jobs });
   } catch (error) {
     return handleError(res, error);
   }

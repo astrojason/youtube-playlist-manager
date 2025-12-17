@@ -8,6 +8,7 @@ This project spins up a local dark-themed web application for managing YouTube p
 - Local JSON cache (`playlists.json`) as the source of truth
 - Playlist CRUD, video add/remove/move operations with batch support
 - Persisted YouTube API job queue (`jobs.json`) so every call is tracked, resumes are possible, and the UI exposes an indicator/button for incomplete jobs.
+- Job queue view shows pending/running/error jobs along with a **Refresh jobs** button; use it whenever you need visibility into jobs that failed or are waiting.
 - Global and playlist-scoped search with duration filtering (±10%)
 - Random video selection filtered by playlist and duration
 - Dark-mode browser UI with reusable video cards, batch actions, and clipboard helpers

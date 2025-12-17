@@ -133,3 +133,8 @@ export async function jobSummary() {
     errors,
   };
 }
+
+export async function listJobs() {
+  const state = await readJobs();
+  return state.jobs ?? [];
+}

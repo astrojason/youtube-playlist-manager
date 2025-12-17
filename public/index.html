@@ -12,10 +12,6 @@
         <div>
           <p class="eyebrow">Local Web App · Dark Mode</p>
           <h1>YouTube Playlist Manager</h1>
-          <p class="subtitle">
-            Browser-based interface backed by a cached `playlists.json`. All
-            YouTube operations run through the local server.
-          </p>
         </div>
         <div class="top-actions">
           <span id="auth-status" class="pill neutral">Checking auth...</span>
@@ -51,12 +47,12 @@
           </section>
         </aside>
         <section class="canvas">
-          <section class="filters">
-            <input id="search-input" placeholder="Search playlists or videos" />
-            <input
-              id="duration-input"
-              type="number"
-              min="0"
+        <section class="filters">
+          <input id="search-input" placeholder="Search playlists or videos" />
+          <input
+            id="duration-input"
+            type="number"
+            min="0"
               step="0.1"
               placeholder="Duration (minutes)"
             />
@@ -87,6 +83,14 @@
               <span id="search-count"></span>
             </header>
             <div id="search-results"></div>
+          </section>
+          <section class="job-panel">
+            <header>
+              <h3>Job queue</h3>
+              <button id="refresh-jobs-btn" type="button" class="secondary">Refresh jobs</button>
+            </header>
+            <p class="muted">Pending, running, and errored YouTube requests appear here.</p>
+            <div id="job-list" class="job-list"></div>
           </section>
           <section class="playlist-detail">
             <header class="playlist-header">

@@ -97,6 +97,16 @@ button {
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
+button.delete {
+  background: rgba(244, 67, 54, 0.15);
+  border-color: rgba(244, 67, 54, 0.6);
+  color: #ffe0e0;
+}
+
+button.delete:hover {
+  background: rgba(244, 67, 54, 0.25);
+}
+
 button.secondary {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.45);
@@ -283,6 +293,65 @@ textarea {
   color: var(--muted);
 }
 
+.job-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.job-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.job-panel h3 {
+  margin: 0;
+}
+
+.job-panel .job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.job-entry {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.job-entry .status {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.job-entry.pending .status {
+  color: #f7d154;
+}
+
+.job-entry.running .status {
+  color: #5bc0de;
+}
+
+.job-entry.error .status {
+  color: #f44336;
+}
+
+.job-entry.complete .status {
+  color: #39d98b;
+}
+
 .playlist-header {
   display: flex;
   justify-content: space-between;
@@ -463,4 +532,8 @@ textarea {
   to {
     transform: rotate(360deg);
   }
+}
+
+button {
+  white-space: nowrap;
 }

@@ -9,6 +9,7 @@ const state = {
   authorized: false,
   authUrl: null,
   jobSummary: { total: 0, incomplete: 0, pending: 0, errors: 0 },
+  jobList: [],
 };
 
 const elements = {
@@ -16,6 +17,7 @@ const elements = {
   connectBtn: document.getElementById("connect-btn"),
   refreshBtn: document.getElementById("refresh-btn"),
   resumeJobsBtn: document.getElementById("resume-jobs-btn"),
+  refreshJobsBtn: document.getElementById("refresh-jobs-btn"),
   playlistList: document.getElementById("playlist-list"),
   playlistTitle: document.getElementById("playlist-title"),
   playlistDescription: document.getElementById("playlist-description"),
@@ -40,6 +42,7 @@ const elements = {
   moveSelect: document.getElementById("move-target-select"),
   messageBar: document.getElementById("message-bar"),
   loadingIndicator: document.getElementById("loading-indicator"),
+  jobList: document.getElementById("job-list"),
 };
 
 let loadingCount = 0;
@@ -59,10 +62,14 @@ function showMessage(text, type = "info") {
   if (messageTimeout) {
     clearTimeout(messageTimeout);
   }
-  messageTimeout = setTimeout(() => {
-    elements.messageBar.className = "message-bar";
-    elements.messageBar.textContent = "";
-  }, 6000);
+  if (type !== "error") {
+    messageTimeout = setTimeout(() => {
+      elements.messageBar.className = "message-bar";
+      elements.messageBar.textContent = "";
+    }, 6000);
+  } else {
+    messageTimeout = null;
+  }
 }
 
 function updateLoadingIndicator() {
@@ -197,13 +204,14 @@ function createVideoCard(video, options = {}) {
   });
   actions.appendChild(copyButton);
 
-    if (options.onRemove) {
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.textContent = "Delete";
-      removeButton.addEventListener("click", () => options.onRemove(video));
-      actions.appendChild(removeButton);
-    }
+  if (options.onRemove) {
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "Delete";
+    removeButton.addEventListener("click", () => options.onRemove(video));
+    removeButton.classList.add("delete");
+    actions.appendChild(removeButton);
+  }
 
   card.appendChild(checkbox);
   card.appendChild(info);
@@ -250,6 +258,7 @@ function renderPlaylistList() {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.textContent = "Delete";
+    deleteButton.classList.add("delete");
     deleteButton.addEventListener("click", async (event) => {
       event.stopPropagation();
       if (!confirm("Delete playlist permanently?")) {
@@ -412,6 +421,52 @@ function renderSearchResults() {
   elements.searchResults.appendChild(fragment);
 }
 
+function renderJobList() {
+  if (!elements.jobList) {
+    return;
+  }
+  if (!state.jobList || state.jobList.length === 0) {
+    elements.jobList.innerHTML = `<p class="muted">No jobs recorded yet.</p>`;
+    return;
+  }
+  elements.jobList.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  state.jobList.forEach((job) => {
+    const entry = document.createElement("div");
+    entry.className = `job-entry ${job.status ?? ""}`;
+    const label = document.createElement("div");
+    label.innerHTML = `<strong>${job.action}</strong>`;
+    const info = document.createElement("small");
+    info.className = "muted";
+    info.textContent = `attempts: ${job.attempts ?? 0} · updated ${new Date(
+      job.updatedAt ?? job.createdAt
+    ).toLocaleTimeString()}`;
+    const status = document.createElement("span");
+    status.className = "status";
+    status.textContent = job.status;
+    entry.appendChild(label);
+    entry.appendChild(info);
+    entry.appendChild(status);
+    if (job.error) {
+      const errorNode = document.createElement("small");
+      errorNode.textContent = job.error;
+      entry.appendChild(errorNode);
+    }
+    fragment.appendChild(entry);
+  });
+  elements.jobList.appendChild(fragment);
+}
+
+async function loadJobList() {
+  try {
+    const response = await fetchJson("/api/jobs", { method: "GET" });
+    state.jobList = response.jobs ?? [];
+    renderJobList();
+  } catch (error) {
+    showMessage(error.message, "error");
+  }
+}
+
 function renderRandomResult() {
   elements.randomResult.innerHTML = "";
   if (!state.randomResult) {
@@ -443,6 +498,7 @@ function render() {
   renderPlaylistDetail();
   renderSearchResults();
   renderRandomResult();
+  renderJobList();
 }
 
 async function refreshData({ suppressLoading = false } = {}) {
@@ -452,14 +508,14 @@ async function refreshData({ suppressLoading = false } = {}) {
         fetchJson("/api/status", { method: "GET" }),
         fetchJson("/api/playlists", { method: "GET" }),
       ]);
-    state.authorized = status.authorized;
-    state.authUrl = status.authUrl;
-    state.jobSummary = status.jobSummary ?? state.jobSummary ?? {
-      total: 0,
-      incomplete: 0,
-      pending: 0,
-      errors: 0,
-    };
+      state.authorized = status.authorized;
+      state.authUrl = status.authUrl;
+      state.jobSummary = status.jobSummary ?? state.jobSummary ?? {
+        total: 0,
+        incomplete: 0,
+        pending: 0,
+        errors: 0,
+      };
       state.playlists = alphabetizePlaylists(payload.playlists ?? []);
       if (!state.selectedPlaylistId && state.playlists.length > 0) {
         state.selectedPlaylistId = state.playlists[0].playlistId;
@@ -473,9 +529,10 @@ async function refreshData({ suppressLoading = false } = {}) {
       }
       state.selectedItems.clear();
       state.randomResult = null;
-    render();
-    updateAuthStatus();
-    updateJobIndicator();
+      await loadJobList();
+      render();
+      updateAuthStatus();
+      updateJobIndicator();
     } catch (error) {
       showMessage(error.message, "error");
     }
