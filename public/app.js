@@ -8,12 +8,14 @@ const state = {
   randomResult: null,
   authorized: false,
   authUrl: null,
+  jobSummary: { total: 0, incomplete: 0, pending: 0, errors: 0 },
 };
 
 const elements = {
   authStatus: document.getElementById("auth-status"),
   connectBtn: document.getElementById("connect-btn"),
   refreshBtn: document.getElementById("refresh-btn"),
+  resumeJobsBtn: document.getElementById("resume-jobs-btn"),
   playlistList: document.getElementById("playlist-list"),
   playlistTitle: document.getElementById("playlist-title"),
   playlistDescription: document.getElementById("playlist-description"),
@@ -450,8 +452,14 @@ async function refreshData({ suppressLoading = false } = {}) {
         fetchJson("/api/status", { method: "GET" }),
         fetchJson("/api/playlists", { method: "GET" }),
       ]);
-      state.authorized = status.authorized;
-      state.authUrl = status.authUrl;
+    state.authorized = status.authorized;
+    state.authUrl = status.authUrl;
+    state.jobSummary = status.jobSummary ?? state.jobSummary ?? {
+      total: 0,
+      incomplete: 0,
+      pending: 0,
+      errors: 0,
+    };
       state.playlists = alphabetizePlaylists(payload.playlists ?? []);
       if (!state.selectedPlaylistId && state.playlists.length > 0) {
         state.selectedPlaylistId = state.playlists[0].playlistId;
@@ -465,8 +473,9 @@ async function refreshData({ suppressLoading = false } = {}) {
       }
       state.selectedItems.clear();
       state.randomResult = null;
-      render();
-      updateAuthStatus();
+    render();
+    updateAuthStatus();
+    updateJobIndicator();
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -492,6 +501,17 @@ function updateAuthStatus() {
   }
 }
 
+function updateJobIndicator() {
+  if (!elements.resumeJobsBtn) {
+    return;
+  }
+  const count = state.jobSummary?.incomplete ?? 0;
+  elements.resumeJobsBtn.hidden = count === 0;
+  if (count > 0) {
+    elements.resumeJobsBtn.textContent = `Resume jobs (${count})`;
+  }
+}
+
 elements.connectBtn.addEventListener("click", () => {
   const url = state.authUrl ?? "/auth/start";
   window.open(url, "_blank", "noopener");
@@ -509,6 +529,20 @@ elements.refreshBtn.addEventListener("click", async () => {
     showMessage(error.message, "error");
   }
 });
+
+if (elements.resumeJobsBtn) {
+  elements.resumeJobsBtn.addEventListener("click", async () => {
+    try {
+      await withLoading(async () => {
+        await fetchJson("/api/jobs/resume", { method: "POST" });
+      });
+      showMessage("Job queue resumed", "success");
+      await refreshData();
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+}
 
 elements.searchInput.addEventListener("input", (event) => {
   state.searchTerm = event.target.value;

@@ -7,6 +7,7 @@ This project spins up a local dark-themed web application for managing YouTube p
 - OAuth-backed YouTube Data API client (web application flow, local tokens)
 - Local JSON cache (`playlists.json`) as the source of truth
 - Playlist CRUD, video add/remove/move operations with batch support
+- Persisted YouTube API job queue (`jobs.json`) so every call is tracked, resumes are possible, and the UI exposes an indicator/button for incomplete jobs.
 - Global and playlist-scoped search with duration filtering (±10%)
 - Random video selection filtered by playlist and duration
 - Dark-mode browser UI with reusable video cards, batch actions, and clipboard helpers
@@ -65,3 +66,4 @@ This project spins up a local dark-themed web application for managing YouTube p
 1. Supply valid credentials and authorize once.
 2. Use the UI to manage playlists/videos; search, sort, and random selection are client-side.
 3. Consider adding automated tests or linting if the project grows.
+4. When the resume jobs indicator appears, resolve the underlying issue (e.g., OAuth), click **Resume jobs**, and the queue will rerun any pending YouTube API requests before the cache syncs.

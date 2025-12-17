@@ -3,17 +3,13 @@ import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import {
   fetchAllPlaylistsWithVideos,
-  createPlaylist,
-  deletePlaylist as youtubeDeletePlaylist,
-  addVideoToPlaylist,
-  deletePlaylistItem,
-  movePlaylistItem,
   generateAuthUrl,
   exchangeCode,
   hasStoredTokens,
   ensureTokens,
 } from "./youtube.js";
 import { readCache, writeCache } from "./cache.js";
+import { enqueueJob, processPendingJobs, jobSummary } from "./jobs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, "../public");
@@ -88,6 +84,17 @@ function handleError(res, error) {
   return res.status(500).json({ error: error.message ?? "Unexpected server error" });
 }
 
+async function processJobsAndRefresh() {
+  const result = await processPendingJobs();
+  if (result.processedCount > 0) {
+    await rebuildCache();
+  }
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
+}
+
 app.get("/api/status", async (req, res) => {
   try {
     const authorized = await hasStoredTokens();
@@ -97,11 +104,13 @@ app.get("/api/status", async (req, res) => {
     } catch (error) {
       console.warn("Unable to craft auth URL:", error.message);
     }
+    const jobs = await jobSummary();
     res.json({
       authorized,
       cacheLoaded,
       authUrl,
       meta: metaFromState(),
+      jobSummary: jobs,
     });
   } catch (error) {
     return handleError(res, error);
@@ -140,9 +149,9 @@ app.post("/api/playlists", async (req, res) => {
     if (!title) {
       return res.status(400).json({ error: "Title is required" });
     }
-    await createPlaylist(title, description);
-    const updated = await rebuildCache();
-    res.status(201).json({ cache: updated });
+    await enqueueJob("createPlaylist", { title, description });
+    await processJobsAndRefresh();
+    res.status(201).json({ cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -150,9 +159,9 @@ app.post("/api/playlists", async (req, res) => {
 
 app.delete("/api/playlists/:playlistId", async (req, res) => {
   try {
-    await youtubeDeletePlaylist(req.params.playlistId);
-    const updated = await rebuildCache();
-    res.status(200).json({ cache: updated });
+    await enqueueJob("deletePlaylist", { playlistId: req.params.playlistId });
+    await processJobsAndRefresh();
+    res.status(200).json({ cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -166,9 +175,13 @@ app.post("/api/playlists/:playlistId/videos", async (req, res) => {
     }
     const position =
       typeof req.body.position === "number" ? req.body.position : undefined;
-    await addVideoToPlaylist(req.params.playlistId, videoId, position);
-    const updated = await rebuildCache();
-    res.status(201).json({ cache: updated });
+    await enqueueJob("addVideo", {
+      playlistId: req.params.playlistId,
+      videoId,
+      position,
+    });
+    await processJobsAndRefresh();
+    res.status(201).json({ cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -176,9 +189,9 @@ app.post("/api/playlists/:playlistId/videos", async (req, res) => {
 
 app.delete("/api/playlist-items/:playlistItemId", async (req, res) => {
   try {
-    await deletePlaylistItem(req.params.playlistItemId);
-    const updated = await rebuildCache();
-    res.status(200).json({ cache: updated });
+    await enqueueJob("deletePlaylistItem", { playlistItemId: req.params.playlistItemId });
+    await processJobsAndRefresh();
+    res.status(200).json({ cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -190,18 +203,11 @@ app.post("/api/videos/batch-remove", async (req, res) => {
     if (itemIds.length === 0) {
       return res.status(400).json({ error: "itemIds must be a non-empty array" });
     }
-    const errors = [];
-    const successes = [];
     for (const itemId of itemIds) {
-      try {
-        await deletePlaylistItem(itemId);
-        successes.push(itemId);
-      } catch (error) {
-        errors.push({ itemId, message: error.message ?? "Failed to remove item" });
-      }
+      await enqueueJob("deletePlaylistItem", { playlistItemId: itemId });
     }
-    const updated = await rebuildCache();
-    res.json({ removed: successes.length, errors, cache: updated });
+    await processJobsAndRefresh();
+    res.json({ removed: itemIds.length, cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -213,34 +219,30 @@ app.post("/api/videos/move", async (req, res) => {
     if (items.length === 0) {
       return res.status(400).json({ error: "items must be a non-empty array" });
     }
-    const errors = [];
-    const successes = [];
     for (const item of items) {
       if (!item.videoId) {
-        errors.push({
-          playlistItemId: item.playlistItemId,
-          message: "Missing videoId for move operation.",
-        });
-        continue;
+        return res.status(400).json({ error: "Every move item requires a videoId." });
       }
-      try {
-        await movePlaylistItem({
-          playlistItemId: item.playlistItemId,
-          targetPlaylistId: item.targetPlaylistId,
-          targetPosition:
-            typeof item.targetPosition === "number" ? item.targetPosition : undefined,
-          videoId: item.videoId,
-        });
-        successes.push(item.playlistItemId);
-      } catch (error) {
-        errors.push({
-          playlistItemId: item.playlistItemId,
-          message: error.message ?? "Move failed",
-        });
-      }
+      await enqueueJob("moveVideo", {
+        playlistItemId: item.playlistItemId,
+        targetPlaylistId: item.targetPlaylistId,
+        videoId: item.videoId,
+        targetPosition:
+          typeof item.targetPosition === "number" ? item.targetPosition : undefined,
+      });
     }
-    const updated = await rebuildCache();
-    res.json({ moved: successes.length, errors, cache: updated });
+    await processJobsAndRefresh();
+    res.json({ moved: items.length, cache: cacheState });
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
+app.post("/api/jobs/resume", async (req, res) => {
+  try {
+    await processJobsAndRefresh();
+    const jobs = await jobSummary();
+    res.json({ jobSummary: jobs, cache: cacheState });
   } catch (error) {
     return handleError(res, error);
   }
@@ -312,6 +314,11 @@ app.use((err, req, res, next) => {
 
 async function bootstrap() {
   await initializeCache();
+  try {
+    await processJobsAndRefresh();
+  } catch (error) {
+    console.warn("Jobs pending on startup failed:", error.message);
+  }
   app.listen(PORT, () => {
     console.log(`YouTube Playlist Manager running on http://localhost:${PORT}`);
   });
