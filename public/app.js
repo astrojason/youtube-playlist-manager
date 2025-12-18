@@ -10,7 +10,10 @@ const state = {
   authUrl: null,
   jobSummary: { total: 0, incomplete: 0, pending: 0, errors: 0 },
   jobList: [],
+  jobPanelVisible: false,
 };
+
+const TOAST_DURATION = 4500;
 
 const elements = {
   authStatus: document.getElementById("auth-status"),
@@ -23,53 +26,91 @@ const elements = {
   playlistDescription: document.getElementById("playlist-description"),
   playlistCount: document.getElementById("playlist-count"),
   videoList: document.getElementById("video-list"),
+  playlistDetail: document.querySelector(".playlist-detail"),
+  videoListWrapper: document.getElementById("video-list-wrapper"),
   searchInput: document.getElementById("search-input"),
   durationInput: document.getElementById("duration-input"),
   sortSelect: document.getElementById("sort-select"),
   searchResults: document.getElementById("search-results"),
   searchCount: document.getElementById("search-count"),
+  searchPanel: document.getElementById("search-panel"),
   addVideoForm: document.getElementById("add-video-form"),
   newVideoId: document.getElementById("new-video-id"),
   playlistForm: document.getElementById("playlist-create-form"),
   playlistTitleInput: document.getElementById("new-playlist-title"),
   playlistDescriptionInput: document.getElementById("new-playlist-description"),
   randomResult: document.getElementById("random-result"),
+  randomPanel: document.getElementById("random-panel"),
   randomGlobalBtn: document.getElementById("random-global-btn"),
   randomPlaylistBtn: document.getElementById("random-playlist-btn"),
   selectedCount: document.getElementById("selected-count"),
   removeSelectedBtn: document.getElementById("remove-selected-btn"),
   moveSelectedBtn: document.getElementById("move-selected-btn"),
   moveSelect: document.getElementById("move-target-select"),
-  messageBar: document.getElementById("message-bar"),
+  openCreatePlaylistBtn: document.getElementById("open-create-playlist-btn"),
   loadingIndicator: document.getElementById("loading-indicator"),
   jobList: document.getElementById("job-list"),
+  jobPanel: document.getElementById("job-panel"),
+  createPlaylistFlyout: document.getElementById("create-playlist-flyout"),
+  closeCreatePlaylistBtn: document.getElementById("close-create-playlist-btn"),
+  toggleJobPanelBtn: document.getElementById("toggle-job-panel-btn"),
+  toastContainer: document.getElementById("toast-container"),
 };
 
 let loadingCount = 0;
 
-let messageTimeout = null;
-
 function showMessage(text, type = "info") {
   if (!text) {
-    elements.messageBar.className = "message-bar";
-    elements.messageBar.textContent = "";
     return;
   }
-  elements.messageBar.textContent = text;
-  const extraClass =
-    type === "error" ? "error" : type === "success" ? "success" : "";
-  elements.messageBar.className = `message-bar visible ${extraClass}`.trim();
-  if (messageTimeout) {
-    clearTimeout(messageTimeout);
+  const container = elements.toastContainer;
+  if (!container) {
+    if (type === "error") {
+      console.error(text);
+    } else {
+      console.log(text);
+    }
+    return;
   }
-  if (type !== "error") {
-    messageTimeout = setTimeout(() => {
-      elements.messageBar.className = "message-bar";
-      elements.messageBar.textContent = "";
-    }, 6000);
-  } else {
-    messageTimeout = null;
-  }
+
+  const toastType =
+    type === "success" ? "success" : type === "error" ? "error" : "toast-info";
+  const toast = document.createElement("div");
+  toast.className = `toast ${toastType}`;
+  const label = document.createElement("span");
+  label.textContent = text;
+  toast.appendChild(label);
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "toast-close";
+  closeButton.textContent = "×";
+  closeButton.addEventListener("click", () => {
+    clearTimeout(autoRemoveId);
+    removeToast();
+  });
+  toast.appendChild(closeButton);
+
+  let autoRemoveId;
+  const removeToast = () => {
+    if (toast.parentNode) {
+      toast.remove();
+    }
+  };
+  const startAutoRemove = (delay) => {
+    clearTimeout(autoRemoveId);
+    autoRemoveId = setTimeout(removeToast, delay);
+  };
+
+  startAutoRemove(TOAST_DURATION);
+  toast.addEventListener("mouseenter", () => {
+    clearTimeout(autoRemoveId);
+  });
+  toast.addEventListener("mouseleave", () => {
+    startAutoRemove(2000);
+  });
+
+  container.appendChild(toast);
 }
 
 function updateLoadingIndicator() {
@@ -88,6 +129,30 @@ async function withLoading(action) {
     loadingCount = Math.max(0, loadingCount - 1);
     updateLoadingIndicator();
   }
+}
+
+function scrollPlaylistCardToTop() {
+  if (elements.playlistDetail) {
+    elements.playlistDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (elements.videoListWrapper) {
+    elements.videoListWrapper.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
+function openCreatePlaylistFlyout() {
+  if (!elements.createPlaylistFlyout) {
+    return;
+  }
+  elements.createPlaylistFlyout.classList.remove("hidden");
+  elements.playlistTitleInput?.focus();
+}
+
+function closeCreatePlaylistFlyout() {
+  if (!elements.createPlaylistFlyout) {
+    return;
+  }
+  elements.createPlaylistFlyout.classList.add("hidden");
 }
 
 function formatDuration(seconds = 0) {
@@ -178,32 +243,17 @@ function createVideoCard(video, options = {}) {
   titleRow.appendChild(duration);
   info.appendChild(titleRow);
 
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const idItem = document.createElement("span");
-  idItem.textContent = `ID: ${video.videoId}`;
   if (options.showPlaylistName && video.playlistTitle) {
+    const meta = document.createElement("div");
+    meta.className = "meta";
     const playlistItem = document.createElement("span");
     playlistItem.textContent = video.playlistTitle;
     meta.appendChild(playlistItem);
+    info.appendChild(meta);
   }
-  meta.appendChild(idItem);
-  info.appendChild(meta);
 
   const actions = document.createElement("div");
   actions.className = "actions";
-  const copyButton = document.createElement("button");
-  copyButton.type = "button";
-  copyButton.className = "copy";
-  copyButton.textContent = "Copy ID";
-  copyButton.addEventListener("click", () => {
-    navigator.clipboard?.writeText(video.videoId || "").then(
-      () => showMessage("Video ID copied"),
-      () => showMessage("Clipboard unavailable", "error")
-    );
-  });
-  actions.appendChild(copyButton);
-
   if (options.onRemove) {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -226,11 +276,28 @@ async function fetchJson(url, options = {}) {
     },
     ...options,
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error ?? response.statusText);
+  const text = await response.text();
+  const contentType = response.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+  let payload;
+  if (isJson) {
+    try {
+      payload = JSON.parse(text);
+    } catch (parseError) {
+      throw new Error("Invalid JSON response from server");
+    }
+  } else {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = null;
+    }
   }
-  return response.json();
+  if (!response.ok) {
+    const message = payload?.error ?? payload?.message ?? response.statusText;
+    throw new Error(message);
+  }
+  return payload ?? text;
 }
 
 function renderPlaylistList() {
@@ -281,6 +348,7 @@ function renderPlaylistList() {
       state.selectedPlaylistId = playlist.playlistId;
       state.selectedItems.clear();
       render();
+      scrollPlaylistCardToTop();
     });
     entry.tabIndex = 0;
     entry.addEventListener("keydown", (event) => {
@@ -353,9 +421,26 @@ function renderVideoList() {
 }
 
 function renderSearchResults() {
-  const term = state.searchTerm.trim().toLowerCase();
+  const rawTerm = state.searchTerm.trim();
+  const term = rawTerm.toLowerCase();
   const durationMinutes = parseDurationFilter();
   const durationFilterActive = durationMinutes !== null;
+  const shouldShowResults = Boolean(rawTerm) || durationFilterActive;
+
+  if (elements.searchPanel) {
+    elements.searchPanel.classList.toggle("hidden", !shouldShowResults);
+  }
+
+  if (!shouldShowResults) {
+    if (elements.searchResults) {
+      elements.searchResults.innerHTML = "";
+    }
+    if (elements.searchCount) {
+      elements.searchCount.textContent = "";
+    }
+    return;
+  }
+
   const matcher = (text) => text?.toLowerCase().includes(term);
   const results = [];
   state.playlists.forEach((playlist) => {
@@ -381,13 +466,6 @@ function renderSearchResults() {
       }
     });
   });
-
-  const shouldShowResults = term || durationFilterActive;
-  if (!shouldShowResults) {
-    elements.searchResults.innerHTML = `<p class="muted">Search playlists or videos, or apply a duration filter to surface matching videos.</p>`;
-    elements.searchCount.textContent = "";
-    return;
-  }
 
   const sortedResults = sortVideos(results, state.sortBy);
   elements.searchCount.textContent = `${sortedResults.length} match${sortedResults.length === 1 ? "" : "es"}`;
@@ -460,7 +538,9 @@ function renderJobList() {
 async function loadJobList() {
   try {
     const response = await fetchJson("/api/jobs", { method: "GET" });
-    state.jobList = response.jobs ?? [];
+    const jobs = response.jobs ?? [];
+    state.jobList = jobs.filter((job) => job.status !== "complete");
+    updateJobQueueButton();
     renderJobList();
   } catch (error) {
     showMessage(error.message, "error");
@@ -468,9 +548,11 @@ async function loadJobList() {
 }
 
 function renderRandomResult() {
+  if (elements.randomPanel) {
+    elements.randomPanel.classList.toggle("hidden", !state.randomResult);
+  }
   elements.randomResult.innerHTML = "";
   if (!state.randomResult) {
-    elements.randomResult.innerHTML = `<p class="muted">Run a random selection to spotlight a single video.</p>`;
     return;
   }
   const card = createVideoCard(state.randomResult, {
@@ -533,6 +615,8 @@ async function refreshData({ suppressLoading = false } = {}) {
       render();
       updateAuthStatus();
       updateJobIndicator();
+      updateJobQueueButton();
+      updateJobPanelVisibility();
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -545,15 +629,18 @@ async function refreshData({ suppressLoading = false } = {}) {
 }
 
 function updateAuthStatus() {
-  if (state.authorized) {
-    elements.authStatus.textContent = "Authorized";
-    elements.authStatus.className = "pill success";
-    elements.connectBtn.textContent = "Connected";
-    elements.connectBtn.disabled = false;
-  } else {
-    elements.authStatus.textContent = "Authorize via OAuth";
-    elements.authStatus.className = "pill neutral";
+  if (elements.authStatus) {
+    if (state.authorized) {
+      elements.authStatus.textContent = "Authorized";
+      elements.authStatus.className = "pill success";
+      elements.authStatus.classList.remove("hidden");
+    } else {
+      elements.authStatus.className = "pill neutral hidden";
+    }
+  }
+  if (elements.connectBtn) {
     elements.connectBtn.textContent = "Connect";
+    elements.connectBtn.hidden = state.authorized;
     elements.connectBtn.disabled = false;
   }
 }
@@ -567,6 +654,23 @@ function updateJobIndicator() {
   if (count > 0) {
     elements.resumeJobsBtn.textContent = `Resume jobs (${count})`;
   }
+}
+
+function updateJobQueueButton() {
+  if (!elements.toggleJobPanelBtn) {
+    return;
+  }
+  const pendingJobs = (state.jobList ?? []).filter((job) => job.status === "pending").length;
+  elements.toggleJobPanelBtn.textContent = `Jobs (${pendingJobs})`;
+}
+
+function updateJobPanelVisibility() {
+  if (!elements.jobPanel || !elements.toggleJobPanelBtn) {
+    return;
+  }
+  elements.jobPanel.classList.toggle("hidden", !state.jobPanelVisible);
+  elements.toggleJobPanelBtn.setAttribute("aria-pressed", state.jobPanelVisible ? "true" : "false");
+  elements.toggleJobPanelBtn.classList.toggle("active", state.jobPanelVisible);
 }
 
 elements.connectBtn.addEventListener("click", () => {
@@ -601,6 +705,31 @@ if (elements.resumeJobsBtn) {
   });
 }
 
+if (elements.refreshJobsBtn) {
+  elements.refreshJobsBtn.addEventListener("click", async () => {
+    try {
+      await withLoading(loadJobList);
+      showMessage("Jobs refreshed", "success");
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+}
+
+if (elements.toggleJobPanelBtn) {
+  elements.toggleJobPanelBtn.addEventListener("click", async () => {
+    state.jobPanelVisible = !state.jobPanelVisible;
+    updateJobPanelVisibility();
+    if (state.jobPanelVisible) {
+      try {
+        await withLoading(loadJobList);
+      } catch (error) {
+        showMessage(error.message, "error");
+      }
+    }
+  });
+}
+
 elements.searchInput.addEventListener("input", (event) => {
   state.searchTerm = event.target.value;
   renderSearchResults();
@@ -631,6 +760,7 @@ elements.playlistForm.addEventListener("submit", async (event) => {
         body: JSON.stringify({ title, description }),
       });
       elements.playlistForm.reset();
+      closeCreatePlaylistFlyout();
       await refreshData({ suppressLoading: true });
     });
     showMessage("Playlist created", "success");
@@ -699,7 +829,6 @@ elements.moveSelectedBtn.addEventListener("click", async () => {
             playlistItemId: id,
             targetPlaylistId,
             videoId: video.videoId,
-            targetPosition: video.position,
           }
         : null;
     })
@@ -730,6 +859,34 @@ elements.randomGlobalBtn.addEventListener("click", async () => {
 
 elements.randomPlaylistBtn.addEventListener("click", async () => {
   await pickRandom(state.selectedPlaylistId);
+});
+
+if (elements.openCreatePlaylistBtn) {
+  elements.openCreatePlaylistBtn.addEventListener("click", () => {
+    openCreatePlaylistFlyout();
+  });
+}
+
+if (elements.closeCreatePlaylistBtn) {
+  elements.closeCreatePlaylistBtn.addEventListener("click", () => {
+    closeCreatePlaylistFlyout();
+  });
+}
+
+if (elements.createPlaylistFlyout) {
+  elements.createPlaylistFlyout.addEventListener("click", (event) => {
+    if (event.target === elements.createPlaylistFlyout) {
+      closeCreatePlaylistFlyout();
+    }
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.createPlaylistFlyout) {
+    if (!elements.createPlaylistFlyout.classList.contains("hidden")) {
+      closeCreatePlaylistFlyout();
+    }
+  }
 });
 
 async function pickRandom(playlistId) {

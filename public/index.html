@@ -10,37 +10,23 @@
     <div class="app-shell">
       <header class="top-bar">
         <div>
-          <p class="eyebrow">Local Web App · Dark Mode</p>
           <h1>YouTube Playlist Manager</h1>
         </div>
         <div class="top-actions">
-          <span id="auth-status" class="pill neutral">Checking auth...</span>
+          <span id="auth-status" class="pill neutral hidden">Authorized</span>
+          <button id="toggle-job-panel-btn" type="button" class="secondary">Jobs (0)</button>
           <button id="connect-btn" type="button">Connect</button>
           <button id="refresh-btn" type="button">Refresh cache</button>
           <button id="resume-jobs-btn" type="button" class="secondary" hidden>Resume jobs</button>
+          <button id="open-create-playlist-btn" type="button" class="primary">Create playlist</button>
         </div>
       </header>
-      <div id="message-bar" class="message-bar" role="status"></div>
       <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">
         <div class="spinner"></div>
         <p>Working…</p>
       </div>
       <main class="workspace">
         <aside class="sidebar">
-          <section class="sidebar-card">
-            <h2>Playlists</h2>
-            <form id="playlist-create-form" class="stack">
-              <label>
-                Title
-                <input id="new-playlist-title" name="title" required />
-              </label>
-              <label>
-                Description
-                <textarea id="new-playlist-description" name="description"></textarea>
-              </label>
-              <button type="submit" class="primary">Create playlist</button>
-            </form>
-          </section>
           <section class="sidebar-card playlist-list-card">
             <h3>Your playlists</h3>
             <div id="playlist-list"></div>
@@ -68,7 +54,7 @@
               </button>
             </div>
           </section>
-          <section class="random-panel">
+          <section id="random-panel" class="random-panel">
             <div class="panel-head">
               <div>
                 <h3>Random video</h3>
@@ -77,14 +63,14 @@
             </div>
             <div id="random-result"></div>
           </section>
-          <section class="search-results">
+          <section id="search-panel" class="search-results">
             <header>
               <h3>Search & filters</h3>
               <span id="search-count"></span>
             </header>
             <div id="search-results"></div>
           </section>
-          <section class="job-panel">
+          <section id="job-panel" class="job-panel hidden">
             <header>
               <h3>Job queue</h3>
               <button id="refresh-jobs-btn" type="button" class="secondary">Refresh jobs</button>
@@ -118,11 +104,35 @@
                 </button>
               </div>
             </div>
-            <div id="video-list" class="video-list"></div>
+            <div id="video-list-wrapper" class="video-list-wrapper">
+              <div id="video-list" class="video-list"></div>
+            </div>
           </section>
         </section>
       </main>
     </div>
+    <div id="create-playlist-flyout" class="flyout hidden" role="dialog" aria-modal="true">
+      <div class="flyout-content">
+        <div class="flyout-header">
+          <h3>Create playlist</h3>
+          <button id="close-create-playlist-btn" type="button" class="flyout-close" aria-label="Close form">
+            ×
+          </button>
+        </div>
+        <form id="playlist-create-form" class="stack">
+          <label>
+            Title
+            <input id="new-playlist-title" name="title" required />
+          </label>
+          <label>
+            Description
+            <textarea id="new-playlist-description" name="description"></textarea>
+          </label>
+          <button type="submit" class="primary">Create playlist</button>
+        </form>
+      </div>
+    </div>
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

@@ -47,12 +47,11 @@ const ACTION_HANDLERS = {
   deletePlaylistItem: async ({ playlistItemId }) => {
     await deletePlaylistItem(playlistItemId);
   },
-  moveVideo: async ({ playlistItemId, targetPlaylistId, targetPosition, videoId }) => {
+  moveVideo: async ({ playlistItemId, targetPlaylistId, videoId }) => {
     await movePlaylistItem({
       playlistItemId,
       targetPlaylistId,
       videoId,
-      targetPosition,
     });
   },
 };
@@ -87,7 +86,7 @@ export async function processPendingJobs() {
     const state = await readJobs();
     const jobs = state.jobs ?? [];
     for (const job of jobs) {
-      if (job.status === "complete") {
+      if (job.status === "complete" || job.status === "error") {
         continue;
       }
       job.status = "running";

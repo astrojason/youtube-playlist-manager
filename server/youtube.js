@@ -283,7 +283,6 @@ export async function movePlaylistItem({
   playlistItemId,
   targetPlaylistId,
   videoId,
-  targetPosition,
 }) {
   if (!playlistItemId || !targetPlaylistId || !videoId) {
     throw new Error("playlistItemId, targetPlaylistId, and videoId are required to move a video.");
@@ -291,7 +290,7 @@ export async function movePlaylistItem({
 
   let newItem = null;
   try {
-    newItem = await addVideoToPlaylist(targetPlaylistId, videoId, targetPosition);
+    newItem = await addVideoToPlaylist(targetPlaylistId, videoId);
     await deletePlaylistItem(playlistItemId);
     return newItem;
   } catch (error) {
