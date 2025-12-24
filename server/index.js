@@ -7,6 +7,7 @@ import {
   exchangeCode,
   hasStoredTokens,
   ensureTokens,
+  clearStoredTokens,
 } from "./youtube.js";
 import { readCache, writeCache } from "./cache.js";
 import {
@@ -83,10 +84,38 @@ async function rebuildCache() {
   return cacheState;
 }
 
-function handleError(res, error) {
+function isInvalidGrant(error) {
+  if (!error) {
+    return false;
+  }
+  const message = (error.message ?? "").toLowerCase();
+  if (message.includes("invalid_grant") || message.includes("invalid grant")) {
+    return true;
+  }
+  const responseData = error.response?.data;
+  if (responseData && typeof responseData === "object") {
+    if (responseData.error === "invalid_grant") {
+      return true;
+    }
+    const description = (responseData.error_description ?? "").toLowerCase();
+    if (description.includes("invalid_grant") || description.includes("invalid grant")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function handleError(res, error) {
   console.error(error);
   if (error.message?.includes("OAuth tokens missing")) {
     return res.status(401).json({ error: error.message, needsAuth: true });
+  }
+  if (isInvalidGrant(error)) {
+    await clearStoredTokens();
+    return res.status(401).json({
+      error: "Stored OAuth tokens are invalid; please reconnect to authorize the application.",
+      needsAuth: true,
+    });
   }
   return res.status(500).json({ error: error.message ?? "Unexpected server error" });
 }

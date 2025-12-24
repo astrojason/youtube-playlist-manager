@@ -94,6 +94,17 @@ export async function persistTokens(tokens) {
   await fs.writeFile(TOKEN_PATH, payload, "utf8");
 }
 
+export async function clearStoredTokens() {
+  cachedOAuthClient = null;
+  try {
+    await fs.unlink(TOKEN_PATH);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
 export async function generateAuthUrl() {
   const client = await getOAuthClient();
   return client.generateAuthUrl({

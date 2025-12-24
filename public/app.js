@@ -295,6 +295,14 @@ function createVideoCard(video, options = {}) {
   return card;
 }
 
+function invalidateAuthorization() {
+  if (!state.authorized) {
+    return;
+  }
+  state.authorized = false;
+  updateAuthStatus();
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: {
@@ -320,8 +328,15 @@ async function fetchJson(url, options = {}) {
     }
   }
   if (!response.ok) {
+    if (payload?.needsAuth) {
+      invalidateAuthorization();
+    }
     const message = payload?.error ?? payload?.message ?? response.statusText;
-    throw new Error(message);
+    const error = new Error(message);
+    if (payload?.needsAuth) {
+      error.needsAuth = true;
+    }
+    throw error;
   }
   return payload ?? text;
 }
