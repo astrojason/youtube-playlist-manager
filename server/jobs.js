@@ -137,3 +137,33 @@ export async function listJobs() {
   const state = await readJobs();
   return state.jobs ?? [];
 }
+
+export async function resumeErroredJobs() {
+  const state = await readJobs();
+  const jobs = state.jobs ?? [];
+  let resetCount = 0;
+  const timestamp = new Date().toISOString();
+  for (const job of jobs) {
+    if (job.status === "error") {
+      job.status = "pending";
+      job.error = null;
+      job.updatedAt = timestamp;
+      resetCount += 1;
+    }
+  }
+  if (resetCount > 0) {
+    await persistJobs(jobs);
+  }
+  return resetCount;
+}
+
+export async function clearPendingJobs() {
+  const state = await readJobs();
+  const jobs = state.jobs ?? [];
+  const remaining = jobs.filter((job) => job.status === "complete");
+  const removed = jobs.length - remaining.length;
+  if (removed > 0) {
+    await persistJobs(remaining);
+  }
+  return removed;
+}

@@ -11,6 +11,7 @@ const state = {
   jobSummary: { total: 0, incomplete: 0, pending: 0, errors: 0 },
   jobList: [],
   jobPanelVisible: false,
+  playlistFilter: "",
 };
 
 const TOAST_DURATION = 4500;
@@ -39,6 +40,8 @@ const elements = {
   playlistForm: document.getElementById("playlist-create-form"),
   playlistTitleInput: document.getElementById("new-playlist-title"),
   playlistDescriptionInput: document.getElementById("new-playlist-description"),
+  playlistFilterInput: document.getElementById("playlist-filter-input"),
+  clearPlaylistFilterBtn: document.getElementById("clear-playlist-filter-btn"),
   randomResult: document.getElementById("random-result"),
   randomPanel: document.getElementById("random-panel"),
   randomGlobalBtn: document.getElementById("random-global-btn"),
@@ -48,6 +51,7 @@ const elements = {
   moveSelectedBtn: document.getElementById("move-selected-btn"),
   moveSelect: document.getElementById("move-target-select"),
   openCreatePlaylistBtn: document.getElementById("open-create-playlist-btn"),
+  playlistFilterInput: document.getElementById("playlist-filter-input"),
   loadingIndicator: document.getElementById("loading-indicator"),
   jobList: document.getElementById("job-list"),
   jobPanel: document.getElementById("job-panel"),
@@ -55,6 +59,7 @@ const elements = {
   closeCreatePlaylistBtn: document.getElementById("close-create-playlist-btn"),
   toggleJobPanelBtn: document.getElementById("toggle-job-panel-btn"),
   toastContainer: document.getElementById("toast-container"),
+  clearPendingJobsBtn: document.getElementById("clear-pending-jobs-btn"),
 };
 
 let loadingCount = 0;
@@ -166,6 +171,19 @@ function formatDuration(seconds = 0) {
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
+function descriptionPreview(text = "") {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const singleLine = trimmed.replace(/\s+/g, " ");
+  const maxLength = 150;
+  if (singleLine.length <= maxLength) {
+    return singleLine;
+  }
+  return `${singleLine.slice(0, maxLength).trim()}…`;
+}
+
 function parseDurationFilter() {
   const value = parseFloat(state.targetMinutes);
   if (Number.isFinite(value) && value > 0) {
@@ -252,6 +270,14 @@ function createVideoCard(video, options = {}) {
     info.appendChild(meta);
   }
 
+  const preview = descriptionPreview(video.description ?? "");
+  if (preview) {
+    const description = document.createElement("p");
+    description.className = "description";
+    description.textContent = preview;
+    info.appendChild(description);
+  }
+
   const actions = document.createElement("div");
   actions.className = "actions";
   if (options.onRemove) {
@@ -304,7 +330,19 @@ function renderPlaylistList() {
   elements.playlistList.innerHTML = "";
   const fragment = document.createDocumentFragment();
   const sortedPlaylists = alphabetizePlaylists(state.playlists);
-  sortedPlaylists.forEach((playlist) => {
+  const filterTerm = (state.playlistFilter ?? "").trim().toLowerCase();
+  const filteredPlaylists =
+    filterTerm.length > 0
+      ? sortedPlaylists.filter((playlist) =>
+          (playlist.title ?? "").toLowerCase().includes(filterTerm)
+        )
+      : sortedPlaylists;
+  if (filteredPlaylists.length === 0) {
+    elements.playlistList.innerHTML = `<p class="muted">No matching playlists.</p>`;
+    renderMoveTargets();
+    return;
+  }
+  filteredPlaylists.forEach((playlist) => {
     const entry = document.createElement("div");
     entry.className = "playlist-entry";
     if (playlist.playlistId === state.selectedPlaylistId) {
@@ -716,6 +754,20 @@ if (elements.refreshJobsBtn) {
   });
 }
 
+if (elements.clearPendingJobsBtn) {
+  elements.clearPendingJobsBtn.addEventListener("click", async () => {
+    try {
+      await withLoading(async () => {
+        await fetchJson("/api/jobs/clear-pending", { method: "POST" });
+        await refreshData({ suppressLoading: true });
+      });
+      showMessage("Pending jobs cleared", "success");
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+}
+
 if (elements.toggleJobPanelBtn) {
   elements.toggleJobPanelBtn.addEventListener("click", async () => {
     state.jobPanelVisible = !state.jobPanelVisible;
@@ -744,6 +796,23 @@ elements.sortSelect.addEventListener("change", (event) => {
   state.sortBy = event.target.value;
   renderPlaylistDetail();
 });
+
+if (elements.playlistFilterInput) {
+  elements.playlistFilterInput.addEventListener("input", (event) => {
+    state.playlistFilter = event.target.value ?? "";
+    renderPlaylistList();
+  });
+}
+
+if (elements.clearPlaylistFilterBtn) {
+  elements.clearPlaylistFilterBtn.addEventListener("click", () => {
+    state.playlistFilter = "";
+    if (elements.playlistFilterInput) {
+      elements.playlistFilterInput.value = "";
+    }
+    renderPlaylistList();
+  });
+}
 
 elements.playlistForm.addEventListener("submit", async (event) => {
   event.preventDefault();

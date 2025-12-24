@@ -27,10 +27,21 @@
       </div>
       <main class="workspace">
         <aside class="sidebar">
-          <section class="sidebar-card playlist-list-card">
-            <h3>Your playlists</h3>
-            <div id="playlist-list"></div>
-          </section>
+        <section class="sidebar-card playlist-list-card">
+          <h3>Your playlists</h3>
+          <div class="playlist-filter-row">
+            <input
+              id="playlist-filter-input"
+              class="playlist-filter"
+              type="text"
+              placeholder="Filter playlists"
+            />
+            <button id="clear-playlist-filter-btn" type="button" class="secondary compact">
+              Clear
+            </button>
+          </div>
+          <div id="playlist-list"></div>
+        </section>
         </aside>
         <section class="canvas">
         <section class="filters">
@@ -73,7 +84,10 @@
           <section id="job-panel" class="job-panel hidden">
             <header>
               <h3>Job queue</h3>
-              <button id="refresh-jobs-btn" type="button" class="secondary">Refresh jobs</button>
+              <div class="job-panel-controls">
+                <button id="refresh-jobs-btn" type="button" class="secondary">Refresh jobs</button>
+                <button id="clear-pending-jobs-btn" type="button" class="secondary">Clear pending</button>
+              </div>
             </header>
             <p class="muted">Pending, running, and errored YouTube requests appear here.</p>
             <div id="job-list" class="job-list"></div>
