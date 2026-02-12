@@ -14,3 +14,6 @@ yarn-error.log*
 coverage/
 dist/
 jobs.json
+watch-history.json
+data/
+*.tar.gz

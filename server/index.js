@@ -18,6 +18,7 @@ import {
   resumeErroredJobs,
   clearPendingJobs,
 } from "./jobs.js";
+import { loadWatchHistory } from "./watchHistory.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, "../public");
@@ -32,6 +33,7 @@ let cacheState = {
   playlists: [],
   syncedAt: null,
   version: 0,
+  watchHistory: [],
 };
 let cacheLoaded = false;
 
@@ -62,6 +64,7 @@ async function initializeCache() {
         playlists: Array.isArray(existing.playlists) ? existing.playlists : [],
         syncedAt: existing.syncedAt ?? null,
         version: existing.version ?? 0,
+        watchHistory: Array.isArray(existing.watchHistory) ? existing.watchHistory : [],
       };
       cacheLoaded = true;
       return;
@@ -74,10 +77,16 @@ async function initializeCache() {
 async function rebuildCache() {
   await ensureTokens();
   const fresh = await fetchAllPlaylistsWithVideos();
+  const watchHistoryResult = await loadWatchHistory();
+  const watchHistoryToStore =
+    watchHistoryResult.loaded && Array.isArray(watchHistoryResult.ids)
+      ? watchHistoryResult.ids
+      : cacheState.watchHistory ?? [];
   cacheState = {
     ...fresh,
     playlists: Array.isArray(fresh.playlists) ? fresh.playlists : [],
     version: (cacheState.version ?? 0) + 1,
+    watchHistory: watchHistoryToStore,
   };
   cacheLoaded = true;
   await writeCache(cacheState);
@@ -147,6 +156,10 @@ app.get("/api/status", async (req, res) => {
       authUrl,
       meta: metaFromState(),
       jobSummary: jobs,
+      watchHistory: Array.isArray(cacheState.watchHistory) ? cacheState.watchHistory : [],
+      watchHistoryCount: Array.isArray(cacheState.watchHistory)
+        ? cacheState.watchHistory.length
+        : 0,
     });
   } catch (error) {
     return handleError(res, error);
@@ -205,12 +218,45 @@ app.delete("/api/playlists/:playlistId", async (req, res) => {
 
 app.post("/api/playlists/:playlistId/videos", async (req, res) => {
   try {
-    const videoId = req.body.videoId;
+    const rawVideoId = req.body.videoId;
+    const videoId = typeof rawVideoId === "string" ? rawVideoId.trim() : "";
     if (!videoId) {
       return res.status(400).json({ error: "videoId is required" });
     }
     const position =
       typeof req.body.position === "number" ? req.body.position : undefined;
+    const playlist = (cacheState.playlists ?? []).find(
+      (item) => item.playlistId === req.params.playlistId
+    );
+    if (playlist) {
+      const normalizedVideoId = videoId.toLowerCase();
+      const alreadyPresent = (playlist.videos ?? []).some(
+        (video) => (video.videoId ?? "").toLowerCase() === normalizedVideoId
+      );
+      if (alreadyPresent) {
+        return res.status(409).json({ error: "Video already exists in the playlist" });
+      }
+    }
+    const normalizedVideoId = videoId.toLowerCase();
+    const playlists = cacheState.playlists ?? [];
+    const alreadyInAnotherPlaylist = playlists.some((item) =>
+      (item.videos ?? []).some(
+        (video) => video && (video.videoId ?? "").toLowerCase() === normalizedVideoId
+      )
+    );
+    if (alreadyInAnotherPlaylist) {
+      return res
+        .status(409)
+        .json({ error: "Video already exists in another playlist" });
+    }
+    const historyLookup = new Set(
+      (Array.isArray(cacheState.watchHistory) ? cacheState.watchHistory : [])
+        .filter((id) => typeof id === "string")
+        .map((id) => id.toLowerCase())
+    );
+    if (historyLookup.has(normalizedVideoId)) {
+      return res.status(409).json({ error: "Video already exists in watch history" });
+    }
     await enqueueJob("addVideo", {
       playlistId: req.params.playlistId,
       videoId,

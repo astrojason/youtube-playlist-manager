@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:

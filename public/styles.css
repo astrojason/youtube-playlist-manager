@@ -512,9 +512,48 @@ textarea {
 
 .video-actions form {
   flex: 1 1 320px;
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
+  align-items: stretch;
+}
+
+.video-actions form input,
+.video-actions form select {
+  min-width: 0;
+  flex: 1 1 140px;
+}
+
+.video-actions form button {
+  flex: 0 0 auto;
+}
+
+.video-actions .import-form {
+  flex: 1 1 100%;
+  flex-direction: column;
+}
+
+.video-actions .import-form label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.video-actions .import-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.video-actions .import-form small {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.video-actions .import-form button {
+  align-self: flex-start;
 }
 
 .batch-actions {

@@ -1,8 +1,8 @@
 import { promises as fs } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
+import { resolve } from "path";
+import { DATA_DIR } from "./config.js";
 
-const cachePath = resolve(dirname(fileURLToPath(import.meta.url)), "../playlists.json");
+const cachePath = resolve(DATA_DIR, "playlists.json");
 
 export async function readCache() {
   try {

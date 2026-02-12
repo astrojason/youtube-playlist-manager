@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { resolve } from "path";
 import {
   addVideoToPlaylist,
   createPlaylist,
@@ -9,8 +8,9 @@ import {
   deletePlaylistItem,
   movePlaylistItem,
 } from "./youtube.js";
+import { DATA_DIR } from "./config.js";
 
-const jobsPath = resolve(dirname(fileURLToPath(import.meta.url)), "../jobs.json");
+const jobsPath = resolve(DATA_DIR, "jobs.json");
 let processing = false;
 
 async function readJobs() {

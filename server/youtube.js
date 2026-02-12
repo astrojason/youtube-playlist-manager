@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
 import { google } from "googleapis";
 import { promises as fs } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { resolve } from "path";
+import { DATA_DIR } from "./config.js";
 
 dotenv.config();
 
@@ -11,8 +11,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
 ];
 const PORT = Number(process.env.PORT) || 3000;
-const TOKEN_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../tokens.json");
-const CREDENTIALS_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../credentials.json");
+const TOKEN_PATH = resolve(DATA_DIR, "tokens.json");
+const CREDENTIALS_PATH = resolve(DATA_DIR, "credentials.json");
 
 let cachedOAuthClient = null;
 let cachedConfig = null;

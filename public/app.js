@@ -12,9 +12,12 @@ const state = {
   jobList: [],
   jobPanelVisible: false,
   playlistFilter: "",
+  addVideoTargetPlaylistId: null,
+  watchHistoryIds: new Set(),
 };
 
 const TOAST_DURATION = 4500;
+const DEFAULT_ADD_PLAYLIST_TITLE = "Saved for Later";
 
 const elements = {
   authStatus: document.getElementById("auth-status"),
@@ -37,6 +40,9 @@ const elements = {
   searchPanel: document.getElementById("search-panel"),
   addVideoForm: document.getElementById("add-video-form"),
   newVideoId: document.getElementById("new-video-id"),
+  targetPlaylistSelect: document.getElementById("target-playlist-select"),
+  importVideosForm: document.getElementById("import-videos-form"),
+  batchVideoIds: document.getElementById("batch-video-ids"),
   playlistForm: document.getElementById("playlist-create-form"),
   playlistTitleInput: document.getElementById("new-playlist-title"),
   playlistDescriptionInput: document.getElementById("new-playlist-description"),
@@ -182,6 +188,117 @@ function descriptionPreview(text = "") {
     return singleLine;
   }
   return `${singleLine.slice(0, maxLength).trim()}…`;
+}
+
+function normalizeVideoIdInput(value = "") {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const urlMatch = trimmed.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i
+  );
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed;
+}
+
+function parseVideoIdsFromInput(value = "") {
+  const parts = (value ?? "").split(/[\s,]+/);
+  const seen = new Set();
+  const parsed = [];
+  for (const part of parts) {
+    const normalized = normalizeVideoIdInput(part);
+    if (!normalized) {
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    parsed.push(normalized);
+  }
+  return parsed;
+}
+
+function normalizePlaylistTitle(value = "") {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function getDefaultAddPlaylistId() {
+  const targetName = normalizePlaylistTitle(DEFAULT_ADD_PLAYLIST_TITLE);
+  if (!targetName) {
+    return null;
+  }
+  const playlist = state.playlists.find(
+    (item) => normalizePlaylistTitle(item.title) === targetName
+  );
+  return playlist?.playlistId ?? null;
+}
+
+function ensureAddVideoTargetPlaylist() {
+  const hasPlaylists = Array.isArray(state.playlists) && state.playlists.length > 0;
+  if (!hasPlaylists) {
+    state.addVideoTargetPlaylistId = null;
+    return;
+  }
+  if (
+    state.addVideoTargetPlaylistId &&
+    state.playlists.some((item) => item.playlistId === state.addVideoTargetPlaylistId)
+  ) {
+    return;
+  }
+  const defaultPlaylistId = getDefaultAddPlaylistId();
+  if (defaultPlaylistId) {
+    state.addVideoTargetPlaylistId = defaultPlaylistId;
+    return;
+  }
+  if (
+    state.selectedPlaylistId &&
+    state.playlists.some((item) => item.playlistId === state.selectedPlaylistId)
+  ) {
+    state.addVideoTargetPlaylistId = state.selectedPlaylistId;
+    return;
+  }
+  state.addVideoTargetPlaylistId = state.playlists[0]?.playlistId ?? null;
+}
+
+function findPlaylistsContainingVideo(videoId = "") {
+  const normalized = (videoId ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+  return state.playlists.filter((playlist) =>
+    (playlist.videos ?? []).some(
+      (video) => (video.videoId ?? "").toLowerCase() === normalized
+    )
+  );
+}
+
+function isVideoAlreadyInPlaylist(videoId, playlistId) {
+  const matches = findPlaylistsContainingVideo(videoId);
+  if (!playlistId) {
+    return matches.length > 0;
+  }
+  return matches.some((playlist) => playlist.playlistId === playlistId);
+}
+
+function getFirstPlaylistWithVideo(videoId) {
+  const match = findPlaylistsContainingVideo(videoId)[0];
+  return match ? match.title ?? "playlist" : null;
+}
+
+function isVideoInWatchHistory(videoId) {
+  const normalized = (videoId ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return state.watchHistoryIds.has(normalized);
 }
 
 function parseDurationFilter() {
@@ -628,8 +745,40 @@ function renderMoveTargets() {
   });
 }
 
+function renderAddVideoPlaylistSelect() {
+  if (!elements.targetPlaylistSelect) {
+    return;
+  }
+  ensureAddVideoTargetPlaylist();
+  const select = elements.targetPlaylistSelect;
+  select.innerHTML = "";
+  if (!state.playlists.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No playlists available";
+    select.appendChild(option);
+    select.disabled = true;
+    state.addVideoTargetPlaylistId = null;
+    return;
+  }
+  const defaultPlaylistId = getDefaultAddPlaylistId();
+  state.playlists.forEach((playlist) => {
+    const option = document.createElement("option");
+    option.value = playlist.playlistId;
+    const label = playlist.title ?? "Untitled playlist";
+    option.textContent =
+      playlist.playlistId === defaultPlaylistId ? `${label} (default)` : label;
+    select.appendChild(option);
+  });
+  select.disabled = false;
+  const preferredId = state.addVideoTargetPlaylistId ?? select.options[0].value;
+  select.value = preferredId;
+  state.addVideoTargetPlaylistId = select.value;
+}
+
 function render() {
   renderPlaylistList();
+  renderAddVideoPlaylistSelect();
   renderPlaylistDetail();
   renderSearchResults();
   renderRandomResult();
@@ -651,6 +800,11 @@ async function refreshData({ suppressLoading = false } = {}) {
         pending: 0,
         errors: 0,
       };
+      state.watchHistoryIds = new Set(
+        (Array.isArray(status.watchHistory) ? status.watchHistory : [])
+          .filter((id) => typeof id === "string")
+          .map((id) => id.toLowerCase())
+      );
       state.playlists = alphabetizePlaylists(payload.playlists ?? []);
       if (!state.selectedPlaylistId && state.playlists.length > 0) {
         state.selectedPlaylistId = state.playlists[0].playlistId;
@@ -662,6 +816,7 @@ async function refreshData({ suppressLoading = false } = {}) {
           ? state.playlists[0].playlistId
           : null;
       }
+      ensureAddVideoTargetPlaylist();
       state.selectedItems.clear();
       state.randomResult = null;
       await loadJobList();
@@ -855,25 +1010,111 @@ elements.playlistForm.addEventListener("submit", async (event) => {
 
 elements.addVideoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const videoId = elements.newVideoId.value.trim();
-  if (!videoId || !state.selectedPlaylistId) {
+  const videoId = normalizeVideoIdInput(elements.newVideoId.value);
+  const targetPlaylistId = state.addVideoTargetPlaylistId ?? state.selectedPlaylistId;
+  if (!videoId || !targetPlaylistId) {
     showMessage("Select a playlist and provide a video ID", "error");
+    return;
+  }
+  const playlistMatch = getFirstPlaylistWithVideo(videoId);
+  if (playlistMatch) {
+    showMessage(`Video already exists in ${playlistMatch}`, "error");
+    return;
+  }
+  if (isVideoInWatchHistory(videoId)) {
+    showMessage("Video already exists in watch history", "error");
     return;
   }
   try {
     await withLoading(async () => {
-      await fetchJson(`/api/playlists/${state.selectedPlaylistId}/videos`, {
+      await fetchJson(`/api/playlists/${targetPlaylistId}/videos`, {
         method: "POST",
         body: JSON.stringify({ videoId }),
       });
       elements.addVideoForm.reset();
       await refreshData({ suppressLoading: true });
     });
-    showMessage("Video added to playlist", "success");
+    const playlistName =
+      state.playlists.find((item) => item.playlistId === targetPlaylistId)?.title ?? "playlist";
+    showMessage(`Video added to ${playlistName}`, "success");
   } catch (error) {
     showMessage(error.message, "error");
   }
 });
+
+if (elements.importVideosForm) {
+  elements.importVideosForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const targetPlaylistId = state.addVideoTargetPlaylistId ?? state.selectedPlaylistId;
+    const videoIds = parseVideoIdsFromInput(elements.batchVideoIds.value);
+    if (videoIds.length === 0) {
+      showMessage("Provide at least one YouTube ID or URL to import", "error");
+      return;
+    }
+    if (!targetPlaylistId) {
+      showMessage("Select a playlist before importing videos", "error");
+      return;
+    }
+    const toAdd = [];
+    let skippedExisting = 0;
+    let skippedHistory = 0;
+    for (const videoId of videoIds) {
+      if (isVideoAlreadyInPlaylist(videoId)) {
+        skippedExisting += 1;
+        continue;
+      }
+      if (isVideoInWatchHistory(videoId)) {
+        skippedHistory += 1;
+        continue;
+      }
+      toAdd.push(videoId);
+    }
+    if (toAdd.length === 0) {
+      const reasons = [];
+      if (skippedExisting > 0) {
+        reasons.push(`${skippedExisting} already in playlists`);
+      }
+      if (skippedHistory > 0) {
+        reasons.push(`${skippedHistory} in watch history`);
+      }
+      const reasonText = reasons.length ? ` (${reasons.join("; ")})` : "";
+      showMessage(`No new videos to import${reasonText}`, "info");
+      return;
+    }
+    try {
+      await withLoading(async () => {
+        for (const videoId of toAdd) {
+          await fetchJson(`/api/playlists/${targetPlaylistId}/videos`, {
+            method: "POST",
+            body: JSON.stringify({ videoId }),
+          });
+        }
+        elements.batchVideoIds.value = "";
+        await refreshData({ suppressLoading: true });
+      });
+      const playlistName =
+        state.playlists.find((item) => item.playlistId === targetPlaylistId)?.title ?? "playlist";
+      const summaryParts = [
+        `Imported ${toAdd.length} video${toAdd.length === 1 ? "" : "s"} to ${playlistName}`,
+      ];
+      if (skippedExisting > 0) {
+        summaryParts.push(`${skippedExisting} already in playlists`);
+      }
+      if (skippedHistory > 0) {
+        summaryParts.push(`${skippedHistory} in watch history`);
+      }
+      showMessage(summaryParts.join("; "), "success");
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+}
+
+if (elements.targetPlaylistSelect) {
+  elements.targetPlaylistSelect.addEventListener("change", (event) => {
+    state.addVideoTargetPlaylistId = event.target.value;
+  });
+}
 
 elements.removeSelectedBtn.addEventListener("click", async () => {
   if (state.selectedItems.size === 0) {

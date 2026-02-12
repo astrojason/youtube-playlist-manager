@@ -105,7 +105,20 @@
             <div class="video-actions">
               <form id="add-video-form">
                 <input id="new-video-id" placeholder="Add video by ID" />
+                <select id="target-playlist-select" aria-label="Playlist to add video to"></select>
                 <button type="submit" class="primary">Add</button>
+              </form>
+              <form id="import-videos-form" class="import-form">
+                <label for="batch-video-ids">
+                  Import video IDs
+                  <small>Paste URLs or comma/newline-separated IDs (default playlist is Saved for Later)</small>
+                </label>
+                <textarea
+                  id="batch-video-ids"
+                  rows="3"
+                  placeholder="e.g. dQw4w9WgXcQ"
+                ></textarea>
+                <button type="submit" class="primary">Import</button>
               </form>
               <div class="batch-actions">
                 <span id="selected-count">0 selected</span>
