@@ -1,0 +1,1 @@
+- [x] update the layout to handle mobile devices better
