@@ -1,49 +1,38 @@
-
-# YouTube Playlist Manager — Local Web App Specification
+# YouTube Playlist Manager — Specification
 
 ## 1. Overview
-A locally hosted web application for managing YouTube playlists and videos using the YouTube Data API v3.
-The application runs on `localhost`, uses a browser-based dark-mode UI, and maintains a local JSON cache as the authoritative UI state.
 
-This is **not** a native desktop app.
+A locally hosted (or self-hosted) web application for managing YouTube playlists and videos via the YouTube Data API v3. Runs on `localhost` or a remote server, served by a Node/Express backend. The frontend is a single-page React app compiled in-browser by Babel Standalone.
 
 ---
 
 ## 2. Platform & Runtime
 
-### Environment
-- **Host OS**: macOS (MacBook Pro)
-- **Runtime**: Local web server
-- **UI**: Browser-based (Chrome / Safari)
-- **Theme**: Dark mode only
+| Concern | Detail |
+|---------|--------|
+| Host OS | macOS (dev), Linux (server via Docker) |
+| Runtime | Node.js / Express |
+| UI | Browser-based (Chrome / Safari), dark mode only |
+| Deployment | Docker — `docker compose up` locally, `./deploy.sh` for remote |
 
-### Execution Model
-- Backend server runs locally
-- Frontend served from backend
-- User opens the app via `http://localhost:<port>`
+**Remote server:** `astrojason@astroserver`, port 3000, `unless-stopped` restart policy, named Docker volume `youtube-data` for persistence.
 
 ---
 
-## 3. Persistence & Local State
+## 3. Persistence
 
-### JSON Cache
-- File: `playlists.json`
-- Location: Project root
-- Purpose: UI source of truth
+| File | Location | Purpose |
+|------|----------|---------|
+| `playlists.json` | `DATA_DIR` (default `./data`) | Full playlist + video cache |
+| `tokens.json` | `DATA_DIR` | OAuth tokens |
+| `jobs.json` | `DATA_DIR` | Job queue state |
+| `watch-history.json` | `DATA_DIR` | Optional; video IDs to block re-adding |
 
 ### Rules
-- If `playlists.json` does not exist:
-  - Fetch all playlists and videos from YouTube
-  - Create `playlists.json`
-- If it exists:
-  - Load on startup
-- Any mutation:
-  1. Apply change via YouTube API
-  2. Update in-memory state
-  3. Persist updated state to `playlists.json`
-- Manual refresh:
-  - Re-fetch all playlists and videos
-  - Rebuild JSON from API data
+- On startup: load `playlists.json` if present; otherwise wait for OAuth + first refresh.
+- On any mutation: enqueue job → process → rebuild cache via full API re-fetch → write `playlists.json`.
+- Manual refresh: same rebuild flow triggered by the UI button.
+- The cache is never patched in place — it is always rebuilt from live API data.
 
 ---
 
@@ -51,194 +40,188 @@ This is **not** a native desktop app.
 
 ### YouTube Data API v3
 
-#### OAuth
-- Client type: **Web Application**
-- Redirect URI:
-  ```
-  http://localhost:<port>/oauth/callback
-  ```
-- Tokens stored locally (file or memory)
-- Refresh tokens supported
+**OAuth:** Web Application flow. Redirect URI: `http://localhost:<PORT>/oauth/callback`. Refresh tokens supported. `invalid_grant` clears stored tokens and surfaces a re-auth prompt.
 
-#### Required Scopes
+**Required scopes:**
 - `youtube.readonly`
 - `youtube.force-ssl`
 
-#### Supported Operations
-1. Fetch playlists
-2. Create playlists
-3. Delete playlists
-4. Fetch playlist items
-5. Add videos to playlists
-6. Remove videos from playlists
-
-Pagination and quota handling are mandatory.
+**Operations:**
+1. Fetch playlists (paginated)
+2. Create / delete playlists
+3. Fetch playlist items (paginated)
+4. Add / remove videos
+5. Move videos between playlists
+6. Resolve video durations via the Videos API
 
 ---
 
 ## 5. Data Model
 
 ### Playlist
-- playlistId
-- title
-- description (optional)
-- videos[]
+```
+playlistId    string
+title         string
+description   string (optional)
+videos        Video[]
+```
 
 ### Video
-- videoId (YouTube ID)
-- title
-- durationSeconds
-- position (playlist order)
-- playlistId
+```
+videoId         string   (YouTube ID)
+playlistItemId  string
+title           string
+description     string
+durationSeconds number
+position        number
+thumbnails      string   (default thumbnail URL, may be absent)
+playlistTitle   string
+```
 
 ---
 
-## 6. Core Features
+## 6. Job Queue
 
-### Playlist Management
-- List all playlists
-- Create playlist
-- Delete playlist
-- View playlist details
-- Search playlists by name (case-insensitive, partial match)
-
-### Video Management
-- Fetch all videos and compute total duration dynamically
-- Sort videos by:
-  - Title
-  - Playlist order
-  - Length
-- Add video by YouTube video ID
-- Remove videos:
-  - Individual
-  - Batch
-- Move videos between playlists:
-  - Individual
-  - Batch
-  - Preserve relative order unless explicitly changed
+- Every mutation (add, remove, move, create playlist, delete playlist) is written as a job to `jobs.json` before any API call is made.
+- Jobs are processed sequentially. On error the queue halts; the UI surfaces the error count in the Jobs pill.
+- **Resume jobs** retries from the first non-complete job.
+- **Clear pending** discards all non-complete jobs without running them.
 
 ---
 
-## 7. Shared Video Card Component
+## 7. UI Architecture
 
-A reusable UI component used everywhere videos are displayed.
+The frontend is a vanilla-JS-free React SPA served as a static file. Babel Standalone compiles JSX in the browser at page load (acceptable for a personal tool; no build step required).
 
-### Displayed Fields
-- Video title (clickable)
-- Duration (mm:ss)
-- Playlist name (when outside playlist context)
-- YouTube video ID (secondary / copyable)
+```
+public/index.html  — shell: loads React + ReactDOM + Babel from CDN, then app.js
+public/app.js      — JSX source: all components + API wiring
+public/styles.css  — full design system
+```
 
-### Interactions
-- Clicking the video title opens the video in a **new browser tab**
-- Supports selection for batch operations
-- Supports context actions (remove, move, etc.)
+### Layout
+
+```
+┌────────────────────────────────────────┐
+│  Topbar (full width)                   │
+├────────────┬───────────────────────────┤
+│  Sidebar   │  Main                     │
+│  (280px)   │  - Filter bar             │
+│            │  - Playlist header        │
+│            │  - Toolbar (batch ops)    │
+│            │  - Add box (collapsible)  │
+│            │  - Video table            │
+└────────────┴───────────────────────────┘
+```
+
+### Topbar
+- Brand mark + "Playlist Manager · YouTube"
+- Global search trigger (opens palette; also ⌘K / Ctrl+K / `/`)
+- Auth status pill (green "Authorized" or red "Connect" button)
+- Jobs pill — shows pending count; click to open Job Panel modal
+- Refresh cache button
+- New playlist button
+
+### Global search palette (⌘K)
+- Searches playlist names and video titles/descriptions across all playlists
+- Keyboard navigation (↑ ↓ ↵ Esc)
+- Default view: jump-to-playlist list
+
+### Sidebar
+- Playlist count, filter input
+- Playlist rows: folder icon, name, video count, hover-reveal delete button
+- Active row highlighted with accent left-bar
+- Footer: New playlist button
+
+### Filter bar (top of main)
+- Per-playlist video search
+- Max duration filter (minutes)
+- Sort select (playlist order / duration / title A→Z)
+- Random (all) and Random (playlist) buttons
+
+### Toolbar
+- Selection count, Remove selected, Move selected (with target playlist select)
+
+### Add box
+- Collapsible (chevron toggle, hint text, `A` keyboard shortcut hint)
+- Single URL/ID field + playlist select + Add button
+- Bulk textarea + Import button
+
+### Video table
+- Zebra-striped rows
+- Columns: checkbox | thumbnail + title/description | duration | delete button
+- Thumbnail: uses `video.thumbnails` URL if present, striped placeholder otherwise
+- Title links to `youtube.com/watch?v=<videoId>` in a new tab
+
+### Modals (palette-backdrop style)
+- **Create playlist** — title + description form
+- **Job panel** — job list with status colours, Resume / Clear pending / Refresh buttons
 
 ---
 
 ## 8. Search
 
-### Scope
-- Global (all playlists)
-- Playlist-scoped
+| Scope | Targets |
+|-------|---------|
+| Global palette | Playlist names, video titles, video descriptions |
+| Per-playlist filter bar | Video titles, video descriptions |
 
-### Targets
-- Playlist names
-- Video titles
-
-### Results Include
-- Playlist name
-- Video title
-- Duration
-- Video ID
+Duration filter in the filter bar: max duration in minutes (videos exceeding the limit are hidden).
 
 ---
 
 ## 9. Random Video Selection
 
-### Entry Points
-- **Home view**: random video from all playlists
-- **Playlist view**: random video from current playlist only
-
-### Rules
-- Random selection always renders exactly one Video Card
-- Duration filter is applied before randomness
-- If no videos match filters, show a clear empty-state message
+- **Random (all):** picks from all videos across all playlists.
+- **Random (playlist):** picks from the current playlist only.
+- Optional duration filter (max minutes) applied before selection.
+- Result displayed as a dismissible panel above the video table; links to YouTube.
 
 ---
 
-## 10. Duration Filtering (Search + Random)
+## 10. Watch History
 
-- User specifies target duration in minutes
-- Fuzzy matching window: ±10%
-- Applies to search results and random selection
-
----
-
-## 11. API Boundary (Frontend ↔ Backend)
-
-- Backend owns OAuth, YouTube API communication, and JSON persistence
-- Frontend communicates with backend via HTTP
-- No direct YouTube API calls from the browser
+- `data/watch-history.json`: array of video IDs (or `{ videos: [...] }` / `{ history: [...] }` shape).
+- Add single video and bulk import both check this list and skip blocked IDs with a count in the toast.
 
 ---
 
-## 12. Error Handling
+## 11. Error Handling
 
-- OAuth failures
-- API quota exhaustion
-- Invalid YouTube IDs
-- Partial batch-operation failures
-- Network failures
-- Corrupt or incompatible JSON
+- OAuth failures (`invalid_grant`) → clear tokens, return `{ needsAuth: true }`, frontend prompts re-auth.
+- Duplicate add → blocked client-side (cache check) with toast.
+- Watch-history block → same.
+- API errors → toast with server error message.
+- Job queue halt → Jobs pill shows error count; Resume or Clear pending available.
 
 ---
 
-## 13. Explicit Non-Goals
+## 12. Deployment
+
+### Local (dev)
+```bash
+npm start
+```
+Redirect URI: `http://localhost:3000/oauth/callback`
+
+### Docker (local)
+```bash
+docker compose up --build
+```
+Data volume: `app-data` → `/app/data`
+
+### Remote (astroserver)
+```bash
+./deploy.sh
+```
+Builds `linux/amd64` image, SCPs image + `.env` to server, stops old container, loads and starts new one. Data volume: `youtube-data` → `/app/data`. Port: 3000.
+
+---
+
+## 13. Non-Goals
 
 - No video playback or embedding
 - No offline edits without sync
 - No mobile optimization
 - No Electron or native wrappers
-
----
-
-## 14. Codex / Code Generation Instructions
-
-```
-You are building a locally hosted web application for managing YouTube playlists.
-
-This is NOT a native desktop app.
-
-Requirements:
-- Runs on localhost
-- Browser-based UI (dark mode only)
-- Backend handles OAuth and all YouTube API calls
-- Frontend communicates with backend via HTTP
-- Maintain a local JSON cache (playlists.json) as the UI source of truth
-
-Functional requirements:
-- List, create, delete playlists
-- Fetch playlist videos and compute durations dynamically
-- Sort videos by title, order, or length
-- Add, remove, and move videos (single and batch)
-- Global and playlist-scoped search
-- Random video selection with duration-based fuzzy filtering (±10%)
-
-UI rules:
-- Implement a reusable VideoCard component
-- Clicking a video title opens the video in a new browser tab
-- Random selection renders exactly one VideoCard
-- Dark mode only
-- No playback or autoplay
-
-Architecture rules:
-- Separate concerns: API client, persistence, domain models, UI
-- Handle pagination and API quotas
-- Tolerate partial batch failures
-- Prefer explicit, readable code over clever abstractions
-- test all functonality thoroughly
-
-Do not implement native desktop features.
-Do not assume constant network availability.
-```
+- No server-side rendering or build pipeline

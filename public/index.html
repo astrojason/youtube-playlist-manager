@@ -1,166 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>YouTube Playlist Manager</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="top-bar">
-        <div>
-          <h1>YouTube Playlist Manager</h1>
-        </div>
-        <div class="top-actions">
-          <span id="auth-status" class="pill neutral hidden">Authorized</span>
-          <button id="toggle-job-panel-btn" type="button" class="secondary">Jobs (0)</button>
-          <button id="connect-btn" type="button">Connect</button>
-          <button id="refresh-btn" type="button">Refresh cache</button>
-          <button id="resume-jobs-btn" type="button" class="secondary" hidden>Resume jobs</button>
-          <button id="open-create-playlist-btn" type="button" class="primary">Create playlist</button>
-        </div>
-      </header>
-      <div id="loading-indicator" class="loading-indicator" role="status" aria-live="polite">
-        <div class="spinner"></div>
-        <p>Working…</p>
-      </div>
-      <main class="workspace">
-        <aside class="sidebar">
-        <section class="sidebar-card playlist-list-card">
-          <h3>Your playlists</h3>
-          <div class="playlist-filter-row">
-            <input
-              id="playlist-filter-input"
-              class="playlist-filter"
-              type="text"
-              placeholder="Filter playlists"
-            />
-            <button id="clear-playlist-filter-btn" type="button" class="secondary compact">
-              Clear
-            </button>
-          </div>
-          <div id="playlist-list"></div>
-        </section>
-        </aside>
-        <section class="canvas">
-        <section class="filters">
-          <input id="search-input" placeholder="Search playlists or videos" />
-          <input
-            id="duration-input"
-            type="number"
-            min="0"
-              step="0.1"
-              placeholder="Duration (minutes)"
-            />
-            <select id="sort-select">
-              <option value="position">Order in playlist</option>
-              <option value="title">Title</option>
-              <option value="duration">Duration</option>
-            </select>
-            <div class="filter-actions">
-              <button id="random-global-btn" type="button">Random (all)</button>
-              <button id="random-playlist-btn" type="button">
-                Random (playlist)
-              </button>
-            </div>
-          </section>
-          <section id="random-panel" class="random-panel">
-            <div class="panel-head">
-              <div>
-                <h3>Random video</h3>
-                <p>Uses duration filter when provided; applies playlist scope.</p>
-              </div>
-            </div>
-            <div id="random-result"></div>
-          </section>
-          <section id="search-panel" class="search-results">
-            <header>
-              <h3>Search & filters</h3>
-              <span id="search-count"></span>
-            </header>
-            <div id="search-results"></div>
-          </section>
-          <section id="job-panel" class="job-panel hidden">
-            <header>
-              <h3>Job queue</h3>
-              <div class="job-panel-controls">
-                <button id="refresh-jobs-btn" type="button" class="secondary">Refresh jobs</button>
-                <button id="clear-pending-jobs-btn" type="button" class="secondary">Clear pending</button>
-              </div>
-            </header>
-            <p class="muted">Pending, running, and errored YouTube requests appear here.</p>
-            <div id="job-list" class="job-list"></div>
-          </section>
-          <section class="playlist-detail">
-            <header class="playlist-header">
-              <div>
-                <h3 id="playlist-title">Select a playlist</h3>
-                <p id="playlist-description"></p>
-              </div>
-              <div class="playlist-meta">
-                <span id="playlist-count"></span>
-              </div>
-            </header>
-            <div class="video-actions">
-              <form id="add-video-form">
-                <input id="new-video-id" placeholder="Add video by ID" />
-                <select id="target-playlist-select" aria-label="Playlist to add video to"></select>
-                <button type="submit" class="primary">Add</button>
-              </form>
-              <form id="import-videos-form" class="import-form">
-                <label for="batch-video-ids">
-                  Import video IDs
-                  <small>Paste URLs or comma/newline-separated IDs (default playlist is Saved for Later)</small>
-                </label>
-                <textarea
-                  id="batch-video-ids"
-                  rows="3"
-                  placeholder="e.g. dQw4w9WgXcQ"
-                ></textarea>
-                <button type="submit" class="primary">Import</button>
-              </form>
-              <div class="batch-actions">
-                <span id="selected-count">0 selected</span>
-                <button id="remove-selected-btn" type="button">
-                  Remove selected
-                </button>
-                <select id="move-target-select"></select>
-                <button id="move-selected-btn" type="button">
-                  Move selected
-                </button>
-              </div>
-            </div>
-            <div id="video-list-wrapper" class="video-list-wrapper">
-              <div id="video-list" class="video-list"></div>
-            </div>
-          </section>
-        </section>
-      </main>
-    </div>
-    <div id="create-playlist-flyout" class="flyout hidden" role="dialog" aria-modal="true">
-      <div class="flyout-content">
-        <div class="flyout-header">
-          <h3>Create playlist</h3>
-          <button id="close-create-playlist-btn" type="button" class="flyout-close" aria-label="Close form">
-            ×
-          </button>
-        </div>
-        <form id="playlist-create-form" class="stack">
-          <label>
-            Title
-            <input id="new-playlist-title" name="title" required />
-          </label>
-          <label>
-            Description
-            <textarea id="new-playlist-description" name="description"></textarea>
-          </label>
-          <button type="submit" class="primary">Create playlist</button>
-        </form>
-      </div>
-    </div>
-    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
-    <script type="module" src="/app.js"></script>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Playlist Manager</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="/app.js"></script>
+</body>
 </html>

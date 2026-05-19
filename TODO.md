@@ -1,1 +1,4 @@
-- [x] update the layout to handle mobile devices better
+- [x] Update layout to handle mobile devices better
+- [x] UI overhaul — new dark shell with topbar/sidebar/main grid, Geist font, global ⌘K search palette, collapsible add box, thumbnail video table (React + Babel Standalone)
+- [x] Docker support — `docker-compose.yml`, named volume for persistent data
+- [x] Deploy script — `deploy.sh` builds for linux/amd64 and ships to astroserver
