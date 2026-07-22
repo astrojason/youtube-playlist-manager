@@ -51,3 +51,10 @@ First-run flow: start the server → open `http://localhost:3000` → click **Co
 - `invalid_grant` errors automatically clear stored tokens and return `{ needsAuth: true }` so the frontend can prompt re-authorization.
 - Adding a video checks for duplicates across all playlists and against `watch-history.json` before enqueuing.
 - Search, sorting, duration filtering, and random selection are all client-side against the cached data from `/api/playlists`.
+
+## TODO.md
+
+Keep `TODO.md` up to date:
+
+- Add an entry for every bug, feature, or enhancement before work begins.
+- Remove items from TODO.md once the work has been committed — do not leave them checked off. The git log is the record.
