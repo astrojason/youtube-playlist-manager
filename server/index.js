@@ -19,11 +19,27 @@ import {
   clearPendingJobs,
 } from "./jobs.js";
 import { loadWatchHistory } from "./watchHistory.js";
+import { execSync } from "child_process";
+import { readFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version } = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf-8"));
 const publicDir = resolve(__dirname, "../public");
 
 const PORT = Number(process.env.PORT) || 3000;
+
+function getChangelog() {
+  const log = execSync(
+    'git log --pretty=format:"%h|%s|%ad" --date=short -n 50',
+    { cwd: resolve(__dirname, "..") }
+  ).toString().trim();
+  return log.split('\n').filter(l => l).map(l => {
+    const [hash, ...rest] = l.split('|');
+    const date = rest.pop();
+    const message = rest.join('|');
+    return { hash, message, date };
+  });
+}
 
 const app = express();
 app.use(express.json());
@@ -403,6 +419,49 @@ app.get("/oauth/callback", async (req, res) => {
   } catch (error) {
     console.error("OAuth exchange failed:", error);
     res.status(500).send("Unable to complete authorization");
+  }
+});
+
+app.get("/api/changelog", (req, res) => {
+  try {
+    res.json({ version, entries: getChangelog() });
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+app.get("/changelog", (req, res) => {
+  try {
+    const entries = getChangelog();
+    const rows = entries.map(e =>
+      `<tr>
+        <td style="font-family:monospace;padding:6px 12px 6px 0;color:#888;white-space:nowrap">${e.hash}</td>
+        <td style="padding:6px 12px;color:#888;white-space:nowrap">${e.date}</td>
+        <td style="padding:6px 0">${e.message.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</td>
+      </tr>`
+    ).join("");
+    res.send(`<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Changelog – v${version}</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body{max-width:860px;margin:0 auto;padding:32px 24px}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--fg-3,#888);margin:0 0 24px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  tr{border-bottom:1px solid var(--line,#222)}
+  tr:hover{background:var(--bg-2,#1a1a1a)}
+  a{color:var(--accent,#88aaff)}
+</style>
+</head><body>
+<p style="margin:0 0 20px"><a href="/">&#8592; back</a></p>
+<h1>Changelog</h1>
+<p class="sub">v${version}</p>
+<table><tbody>${rows}</tbody></table>
+</body></html>`);
+  } catch (err) {
+    res.status(500).send(`<pre>Error: ${err.message}</pre>`);
   }
 });
 

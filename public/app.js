@@ -936,6 +936,7 @@ const App = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [jobPanelOpen, setJobPanelOpen] = useState(false);
   const [randomResult, setRandomResult] = useState(null);
+  const [version, setVersion] = useState(null);
   const toastIdRef = useRef(0);
 
   const showMessage = useCallback((text, type = "info") => {
@@ -987,7 +988,10 @@ const App = () => {
     suppressLoading ? await run() : await withLoading(run);
   }, [loadJobList, showMessage, withLoading]);
 
-  useEffect(() => { refreshData(); }, []);
+  useEffect(() => {
+    refreshData();
+    fetchJson("/api/changelog").then(d => setVersion(d.version)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onKey = e => {
@@ -1265,6 +1269,18 @@ const App = () => {
         toasts={toasts}
         onRemove={id => setToasts(ts => ts.filter(t => t.id !== id))}
       />
+
+      {version && (
+        <div style={{
+          position: "fixed", bottom: 0, right: 0,
+          padding: "5px 10px", fontSize: 11, color: "var(--fg-4)",
+          zIndex: 10,
+        }}>
+          <a href="/changelog" style={{ color: "inherit", textDecoration: "none" }}>
+            v{version}
+          </a>
+        </div>
+      )}
     </div>
   );
 };
